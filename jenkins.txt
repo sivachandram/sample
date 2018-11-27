@@ -1,0 +1,95 @@
+pipeline {
+  agent any
+  
+  /*parameters {
+	string(
+		name: 'CICD Pipeline',
+		defaultValue:'WB',
+		description: 'Costa CICD Pipeline')
+    }*/
+	stages {
+    stage('Pipeline Start') {
+      steps {
+       echo 'Pipeline Started'
+      }
+    }
+}
+}
+node {
+	properties([
+     parameters([
+       choiceParam(
+         choices: 'DEV\nTEST\nSTAGE\nPROD',
+            description: 'Please selet the Build ENVIRONMENTS',
+            name: 'ENVIRONMENTS'
+       ),
+       choiceParam(
+         choices: 'BUILD\nBUILD-AND-ARTEFACT-UPLOAD\nBUILD-AND-RELEASE\nRELEASE',
+            description: 'Please select the Build Mechanism',
+            name: 'BUILD_MECHANISM'
+       ),
+	   string(
+	   name: 'BuildParameters', 
+	   defaultValue: 'mvn -U install -DskipTests=true', 
+	   description: 'Please provide Additional Build Parameter to execute')
+     ])
+   ])	
+   
+	if(params.BUILD_MECHANISM == 'BUILD'){
+		stage 'SourceCodeBuild'	
+			UDF_BuildSourceCode()
+			
+		stage 'SonarQube'
+			UDF_ExecuteSonarQubeRules()
+	}	
+}
+
+//BUILD STAGE
+def UDF_BuildSourceCode()
+{
+	try	{
+		if (params.BuildParameters == '')
+		{
+	echo 'Build is Starting'
+	sh 'mvn -U install -DskipTests=true'
+	echo 'Build Completed'	
+		}else
+		{
+		echo 'Build is Starting'
+		sh '${BuildParameters}'
+		echo 'Build Completed'	
+		}
+	}catch(error)
+	{
+		throw(error)
+		
+	}
+}
+
+//SONARQUBE - STAGE
+def UDF_ExecuteSonarQubeRules()
+{
+	try{
+	echo 'SonarQube Rules Execution started'
+	withSonarQubeEnv('SonarServer-Local') {
+		sh 'mvn sonar:sonar'
+	}
+	echo 'SonarQube Rules Execution Completed'
+	}catch(error)
+	{
+		throw(error)
+		
+	}
+}
+
+
+/*
+This function converts the given json string to HashMap and returns it back
+*/
+import groovy.json.JsonSlurperClassic
+@NonCPS
+def parseJsonToMap(String json) 
+{
+    final slurper = new JsonSlurperClassic()
+    return new HashMap<>(slurper.parseText(json))
+}
